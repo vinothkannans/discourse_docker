@@ -97,6 +97,7 @@ hooks:
     - exec:
         cd: $home
         cmd:
+          - echo "gem 'ox'" >> Gemfile
           - echo "gem 'mysql2'" >> Gemfile
           - echo "gem 'redcarpet'" >> Gemfile
           - echo "gem 'reverse_markdown'" >> Gemfile
