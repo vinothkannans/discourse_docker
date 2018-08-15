@@ -1,0 +1,100 @@
+# This template installs MS SQL Server and all dependencies needed.
+
+params:
+  home: /var/www/discourse
+  sa_password: 'discourse'
+  pid: 'evaluation'
+  data_dir: '/shared/import/mssql/data'
+
+hooks:
+  after_web_config:
+    - exec:
+        cd: /etc/service
+        cmd:
+          - rm -R unicorn
+          - rm -R nginx
+          - rm -R cron
+
+    - exec:
+        cd: /etc/runit/3.d
+        cmd:
+          - rm 01-nginx
+          - rm 02-unicorn
+
+    - file:
+        path: /var/opt/mssql/mssql.conf
+        contents: |
+          [EULA]
+          accepteula = Y
+
+          [coredump]
+          captureminiandfull = true
+          coredumptype = full
+
+          [filelocation]
+          defaultbackupdir = $data_dir
+          defaultdatadir = $data_dir
+          defaultdumpdir = $data_dir
+          defaultlogdir = $data_dir
+
+          [hadr]
+          hadrenabled = 0
+
+          [language]
+          lcid = 1033
+
+          [memory]
+          memorylimitmb = 4096
+
+          [network]
+          forceencryption = 0
+          ipaddress = 10.192.0.0
+          kerberoskeytabfile = /var/opt/mssql/secrets/mssql.keytab
+          tcpport = 1401
+          tlscert = /etc/ssl/certs/mssql.pem
+          tlsciphers = ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA
+          tlskey = /etc/ssl/private/mssql.key
+          tlsprotocols = 1.2,1.1,1.0
+
+          [sqlagent]
+          databasemailprofile = default
+          errorlogfile = /var/opt/mssql/log/sqlagentlog.log
+          errorlogginglevel = 7
+
+          [telemetry]
+          customerfeedback = true
+          userrequestedlocalauditdirectory = /tmp/audit
+
+          [traceflag]
+          traceflag0 = 1204
+          traceflag1 = 2345
+          traceflag = 3456
+
+    - exec:
+        cmd:
+          - mkdir -p $data_dir
+          - wget -qO- https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          - sudo add-apt-repository "$(wget -qO- https://packages.microsoft.com/config/ubuntu/16.04/mssql-server-2017.list)"
+          - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y mssql-server
+          - MSSQL_SA_PASSWORD=$sa_password MSSQL_PID=$pid /opt/mssql/bin/mssql-conf -n setup accept-eula
+          - ACCEPT_EULA=Y apt-get install -y mssql-tools unixodbc-dev
+          - echo PATH="$PATH:/opt/mssql-tools/bin" >> ~/.bash_profile
+          - echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
+
+    - file:
+        path: /etc/service/mssql/run
+        chmod: '+x'
+        contents: |
+          #!/bin/bash
+          mkdir -p $data_dir
+          chown mssql -R $data_dir
+          chgrp mssql -R $data_dir
+          /opt/mssql/bin/mssql-conf set filelocation.defaultdatadir $data_dir
+          sv restart mssql-server
+
+    - file:
+        path: /etc/runit/3.d/99-mssql
+        chmod: '+x'
+        contents: |
+          #!/bin/bash
+          sv stop mssql-server
