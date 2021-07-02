@@ -23,9 +23,9 @@ hooks:
         contents: |
           [mysqld]
           # disable InnoDB since it is extremly slow in Docker container
-          default-storage-engine=MyISAM
-          default-tmp-storage-engine=MyISAM
-          innodb=OFF
+          default-storage-engine=InnoDB
+          default-tmp-storage-engine=InnoDB
+          innodb=ON
           sql_mode=NO_AUTO_CREATE_USER
 
           datadir=/shared/import/mysql/data
@@ -111,6 +111,7 @@ hooks:
         cd: $home
         cmd:
           - echo "gem 'mysql2'" >> Gemfile
+          - echo "gem 'reverse_markdown'" >> Gemfile
           - echo "gem 'ruby-bbcode-to-md', :github => 'nlalonde/ruby-bbcode-to-md'" >> Gemfile
           - su discourse -c 'bundle config unset deployment'
           - su discourse -c 'bundle install --no-deployment --path vendor/bundle --jobs 4 --without test development'
